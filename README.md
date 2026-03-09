@@ -1,5 +1,9 @@
 # agent-skills
 
+[![CI](https://github.com/droxey/agent-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/droxey/agent-skills/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 A curated collection of reusable AI agent skills/prompts plus **`skillsctl`** — a
 production-quality, safe-by-default CLI for scanning, auditing, planning, fixing,
 and migrating skill files across multiple repositories.
@@ -9,14 +13,17 @@ and migrating skill files across multiple repositories.
 ## Table of Contents
 
 1. [What are Skills?](#what-are-skills)
-2. [Repository Layout](#repository-layout)
-3. [Skill Schema](#skill-schema)
-4. [How to Add a Skill](#how-to-add-a-skill)
-5. [skillsctl – CLI Reference](#skillsctl--cli-reference)
-6. [Embeddings & Semantic Search](#embeddings--semantic-search)
-7. [Scanning Repos and Creating PRs – Workflow](#scanning-repos-and-creating-prs--workflow)
-8. [Configuration](#configuration)
-9. [Development](#development)
+2. [Quick Start](#quick-start)
+3. [Repository Layout](#repository-layout)
+4. [Skill Schema](#skill-schema)
+5. [How to Add a Skill](#how-to-add-a-skill)
+6. [skillsctl – CLI Reference](#skillsctl--cli-reference)
+7. [Embeddings & Semantic Search](#embeddings--semantic-search)
+8. [Scanning Repos and Creating PRs – Workflow](#scanning-repos-and-creating-prs--workflow)
+9. [Configuration](#configuration)
+10. [Development](#development)
+11. [Contributing](#contributing)
+12. [License](#license)
 
 ---
 
@@ -33,13 +40,30 @@ Skills encapsulate:
 
 ---
 
+## Quick Start
+
+```bash
+# Install from the repo root
+pip install -e .
+
+# Audit an existing skill file
+skillsctl audit --file skills/general/hello-world.md
+
+# Scan a repo for candidate skill files
+skillsctl scan --local ./my-repo
+```
+
+---
+
 ## Repository Layout
 
 ```
 agent-skills/
 ├── skills/                     # Managed skill files
-│   └── <domain>/
-│       └── <skill-id>.md
+│   ├── documentation/          # Documentation skills (e.g., readme)
+│   │   └── readme.md
+│   └── general/                # General-purpose skills
+│       └── hello-world.md
 ├── skillsctl/                  # The CLI tool (Python package)
 │   ├── cli.py                  # Click entrypoint
 │   ├── scan.py                 # Repo scanning
@@ -275,3 +299,27 @@ pytest tests/ --cov=skillsctl --cov-report=term-missing
 ```
 
 CI runs on every push/PR via `.github/workflows/ci.yml`.
+
+---
+
+## Contributing
+
+Contributions are welcome! To get started:
+
+1. Fork the repository and create a feature branch.
+2. Install the development dependencies: `pip install -e ".[dev]"`
+3. Make your changes and add tests if applicable.
+4. Run the linter and test suite:
+   ```bash
+   ruff check skillsctl/ tests/
+   pytest tests/ -v
+   ```
+5. Open a pull request against `main`.
+
+For adding new skills, see [How to Add a Skill](#how-to-add-a-skill).
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
