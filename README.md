@@ -1,1 +1,277 @@
+# agent-skills
 
+A curated collection of reusable AI agent skills/prompts plus **`skillsctl`** — a
+production-quality, safe-by-default CLI for scanning, auditing, planning, fixing,
+and migrating skill files across multiple repositories.
+
+---
+
+## Table of Contents
+
+1. [What are Skills?](#what-are-skills)
+2. [Repository Layout](#repository-layout)
+3. [Skill Schema](#skill-schema)
+4. [How to Add a Skill](#how-to-add-a-skill)
+5. [skillsctl – CLI Reference](#skillsctl--cli-reference)
+6. [Embeddings & Semantic Search](#embeddings--semantic-search)
+7. [Scanning Repos and Creating PRs – Workflow](#scanning-repos-and-creating-prs--workflow)
+8. [Configuration](#configuration)
+9. [Development](#development)
+
+---
+
+## What are Skills?
+
+A **skill** is a reusable, versioned prompt or instruction set for an AI agent.
+Skills are stored as Markdown files with YAML frontmatter so they are both
+human-readable and machine-parseable.
+
+Skills encapsulate:
+- **What** the agent should do (body / prompt text)
+- **Metadata** for routing, discovery, and tooling constraints (frontmatter)
+- **Verification** guidance to confirm the skill works correctly
+
+---
+
+## Repository Layout
+
+```
+agent-skills/
+├── skills/                     # Managed skill files
+│   └── <domain>/
+│       └── <skill-id>.md
+├── skillsctl/                  # The CLI tool (Python package)
+│   ├── cli.py                  # Click entrypoint
+│   ├── scan.py                 # Repo scanning
+│   ├── audit.py                # Rule-based audit
+│   ├── plan.py                 # Improvement planning
+│   ├── fix.py                  # Auto-fix engine
+│   ├── migrate.py              # Cross-repo migration
+│   ├── rules.py                # Rule fetching & management
+│   ├── schema.py               # JSON Schema + validation helpers
+│   └── embed.py                # Embeddings / BM25 search (optional)
+├── tests/                      # Unit tests + fixtures
+├── pyproject.toml
+└── README.md                   # This file
+```
+
+---
+
+## Skill Schema
+
+Every skill file must have a YAML frontmatter block between `---` delimiters.
+The following fields are **required**:
+
+| Field         | Type                 | Description                         |
+|---------------|----------------------|-------------------------------------|
+| `id`          | `string`             | Stable kebab-case identifier        |
+| `name`        | `string`             | Human-readable display name         |
+| `description` | `string` (>=10 chars)| One-sentence description            |
+| `version`     | `string`             | Semantic version (MAJOR.MINOR.PATCH)|
+| `tags`        | `string[]` (>=1)     | Taxonomy tags for discovery/routing |
+
+Optional fields:
+
+| Field          | Type       | Description                                       |
+|----------------|------------|---------------------------------------------------|
+| `inputs`       | `object[]` | Declared input variables                          |
+| `outputs`      | `object[]` | Declared output variables                         |
+| `tooling`      | `object`   | Model/tool constraints                            |
+| `verification` | `string`   | How to verify the skill produces correct output   |
+| `source`       | `string`   | Original repo URL (populated by `migrate`)        |
+| `migrated_at`  | `string`   | ISO-8601 migration timestamp                      |
+
+The full JSON Schema is defined in `skillsctl/schema.py`.
+
+---
+
+## How to Add a Skill
+
+1. Choose a domain (e.g., `code-review`, `testing`, `documentation`).
+2. Create `skills/<domain>/<your-skill-id>.md`.
+3. Add the required frontmatter (see Skill Schema above).
+4. Write the skill body — include a heading, instructions, and at least one usage example.
+5. Validate locally:
+   ```bash
+   skillsctl audit --file skills/<domain>/<your-skill-id>.md
+   ```
+6. Open a pull request.
+
+---
+
+## skillsctl – CLI Reference
+
+### Installation
+
+```bash
+# From the repo root
+pip install -e .
+
+# With embeddings support
+pip install -e ".[embeddings]"
+
+# Development (includes ruff, pytest, etc.)
+pip install -e ".[dev]"
+```
+
+### Safety Rails
+
+All commands default to dry-run / read-only mode.
+
+- Pass `--apply` to write changes to disk.
+- Pass `--apply --allow-delete` to enable deletion of source files.
+- `--dry-run` is the default; pass `--no-dry-run` together with `--apply` to mutate files.
+
+### `scan`
+
+Clone/fetch repos and detect candidate skill/prompt files by heuristics.
+
+```bash
+skillsctl scan --repo droxey/dotfiles --repo droxey/clincher
+skillsctl scan --local ./my-repo
+skillsctl scan --repo droxey/ai --output my-manifest.json
+```
+
+Outputs a **scan manifest** (JSON) listing every candidate file with its content hash and parsed frontmatter.
+
+### `audit`
+
+Audit candidate files against a ruleset derived from `mgechev/skills-best-practices`.
+
+```bash
+skillsctl audit --manifest scan-manifest.json
+skillsctl audit --file skills/general/hello-world.md
+skillsctl audit --offline   # use built-in baseline rules only
+```
+
+Outputs `audit-report.json` and `audit-report.md`.
+
+The rule source metadata (URL + commit SHA + timestamp) is recorded in every report for reproducibility.
+
+**Built-in rules:**
+
+| ID    | Severity | Description                   |
+|-------|----------|-------------------------------|
+| FM001 | error    | Missing frontmatter           |
+| FM002 | error    | Invalid frontmatter schema    |
+| FM003 | error    | Missing required field        |
+| FM004 | warning  | Non-kebab-case `id`           |
+| FM005 | warning  | Invalid semver `version`      |
+| CT001 | warning  | No descriptive body text      |
+| CT002 | info     | No usage example              |
+| CT003 | info     | Missing `verification` field  |
+| CT004 | warning  | No taxonomy tags              |
+| ST001 | info     | No Markdown heading           |
+
+### `plan`
+
+Produce a prioritised improvement plan from audit findings.
+
+```bash
+skillsctl plan --audit-report audit-report.json
+```
+
+Outputs `improvement-plan.json` and `improvement-plan.md`, ranked by severity -> effort -> fixability.
+
+### `fix`
+
+Apply safe, deterministic fixes in-place (requires `--apply`).
+
+```bash
+# Dry-run (default)
+skillsctl fix --plan-file improvement-plan.json
+
+# Apply fixes
+skillsctl fix --plan-file improvement-plan.json --apply --no-dry-run
+```
+
+Auto-fixable rules: FM001, FM004, FM005, ST001.
+After fixing, a re-audit runs automatically to show improvements.
+
+### `migrate`
+
+Move skill files from source repos into this repo under `skills/<domain>/`.
+
+```bash
+# Dry-run
+skillsctl migrate --manifest scan-manifest.json
+
+# Apply (writes migrated files, leaves pointer in source)
+skillsctl migrate --manifest scan-manifest.json --apply --no-dry-run
+
+# Apply + delete source files
+skillsctl migrate --manifest scan-manifest.json --apply --no-dry-run --allow-delete
+```
+
+---
+
+## Embeddings & Semantic Search
+
+`skillsctl` includes an optional embeddings module (`skillsctl/embed.py`).
+
+| Condition                                        | Behaviour                              |
+|--------------------------------------------------|----------------------------------------|
+| `OPENAI_API_KEY` set + `openai` package installed| Dense embeddings (text-embedding-3-small) |
+| API key missing or package absent                | Automatic BM25 lexical search fallback |
+
+Embeddings are cached at `~/.cache/skillsctl/embeddings.json` (keyed by content SHA-256).
+Override with `SKILLSCTL_CACHE_DIR`.
+
+Embeddings are never required to run the CLI or tests.
+
+---
+
+## Scanning Repos and Creating PRs – Workflow
+
+```bash
+# 1. Scan source repos
+skillsctl scan \
+  --repo droxey/dotfiles \
+  --repo droxey/clincher \
+  --repo droxey/ai \
+  --output scan-manifest.json
+
+# 2. Audit the candidates
+skillsctl audit --manifest scan-manifest.json
+
+# 3. Plan improvements
+skillsctl plan --audit-report audit-report.json
+
+# 4. Apply safe fixes (optional)
+skillsctl fix --plan-file improvement-plan.json --apply --no-dry-run
+
+# 5. Migrate skills into this repo
+skillsctl migrate --manifest scan-manifest.json --apply --no-dry-run
+```
+
+Policy: one PR per source repository is created when migration is applied,
+containing pointer stubs for each migrated skill.
+
+---
+
+## Configuration
+
+| Environment Variable  | Default              | Description                            |
+|-----------------------|----------------------|----------------------------------------|
+| `OPENAI_API_KEY`      | –                    | Enables dense-vector embeddings        |
+| `EMBEDDINGS_API_KEY`  | –                    | Alternative key (any OpenAI-compat API)|
+| `EMBEDDINGS_API_BASE` | –                    | Custom base URL for embeddings API     |
+| `SKILLSCTL_CACHE_DIR` | `~/.cache/skillsctl` | Embeddings cache directory             |
+
+---
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+
+# Lint
+ruff check skillsctl/ tests/
+ruff format --check skillsctl/ tests/
+
+# Test
+pytest tests/ -v
+pytest tests/ --cov=skillsctl --cov-report=term-missing
+```
+
+CI runs on every push/PR via `.github/workflows/ci.yml`.
