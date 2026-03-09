@@ -1,3 +1,26 @@
+Metadata-Version: 2.4
+Name: skillsctl
+Version: 0.1.0
+Summary: Multi-repo prompt/skill cleanup & migration tool
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: jsonschema>=4.17
+Requires-Dist: click>=8.1
+Requires-Dist: requests>=2.31
+Requires-Dist: gitpython>=3.1
+Requires-Dist: rich>=13.0
+Requires-Dist: rank-bm25>=0.2
+Provides-Extra: embeddings
+Requires-Dist: openai>=1.0; extra == "embeddings"
+Requires-Dist: numpy>=1.24; extra == "embeddings"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: pytest-cov>=4.1; extra == "dev"
+Requires-Dist: ruff>=0.1; extra == "dev"
+Requires-Dist: responses>=0.24; extra == "dev"
+
 # agent-skills
 
 A curated collection of reusable AI agent skills/prompts plus **`skillsctl`** — a
