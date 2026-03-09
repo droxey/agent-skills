@@ -1,2 +1,0 @@
-[console_scripts]
-skillsctl = skillsctl.cli:main
